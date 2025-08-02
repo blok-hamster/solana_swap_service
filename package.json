@@ -1,0 +1,47 @@
+{
+  "name": "solana_swap_service",
+  "version": "1.0.0",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "nodemon src/index.ts",
+    "clean": "rimraf dist",
+    "prebuild": "npm run clean",
+    "type-check": "tsc --noEmit",
+    "lint": "echo \"Add ESLint configuration for linting\"",
+    "test": "echo \"No tests specified\" && exit 0"
+  },
+  "keywords": [
+    "typescript",
+    "node",
+    "backend",
+    "solana",
+    "swap",
+    "rabbitmq",
+    "microservice",
+    "queue-worker"
+  ],
+  "author": "",
+  "license": "MIT",
+  "description": "Dedicated Solana swap queue worker service for trade execution and monitoring",
+  "devDependencies": {
+    "@types/node": "^24.0.15",
+    "nodemon": "^3.1.10",
+    "rimraf": "^6.0.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.3"
+  },
+  "dependencies": {
+    "@solana/spl-token": "^0.4.13",
+    "@solana/web3.js": "^1.95.2",
+    "@types/amqplib": "^0.10.1",
+    "amqplib": "^0.10.3",
+    "axios": "^1.6.0",
+    "bs58": "^6.0.0",
+    "dotenv": "^17.2.0",
+    "mongodb": "^6.17.0",
+    "solana-swap": "^1.3.0"
+  },
+  "types": "dist/index.d.ts"
+}
