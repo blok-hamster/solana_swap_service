@@ -42,6 +42,8 @@ export class TradeQueue {
         durable: true,
         arguments: {
           'x-message-ttl': 3600000, // 1 hour TTL
+          'x-dead-letter-exchange': 'dead_letter',
+          'x-dead-letter-routing-key': 'failed'
         }
       });
       

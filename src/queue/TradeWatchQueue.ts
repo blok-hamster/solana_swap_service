@@ -60,6 +60,8 @@ export class TradeWatchQueue {
         durable: true,
         arguments: {
           'x-message-ttl': 86400000, // 24 hour TTL for watch jobs
+          'x-dead-letter-exchange': 'dead_letter',
+          'x-dead-letter-routing-key': 'failed'
         }
       });
       
@@ -83,6 +85,8 @@ export class TradeWatchQueue {
         durable: true,
         arguments: {
           'x-message-ttl': 600000, // 10 minutes TTL for sold job tracking
+          'x-dead-letter-exchange': 'dead_letter',
+          'x-dead-letter-routing-key': 'failed'
         }
       });
 
