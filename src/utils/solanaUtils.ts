@@ -108,7 +108,6 @@ export async function checkFeeBalance(publicKey: PublicKey): Promise<boolean> {
     const connection = new Connection(process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com');
     const balance = await connection.getBalance(publicKey);
     const balanceInSol = balance / 1e9;
-    
     // Require minimum 0.001 SOL for fees
     return balanceInSol >= 0.001;
   } catch (error) {

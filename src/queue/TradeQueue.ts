@@ -50,6 +50,7 @@ export class TradeQueue {
       // Assert dead letter queue for failed trades
       await this.channel!.assertQueue(`${this.options.queueName}_dlq`, { 
         durable: true 
+        
       });
       
       // Assert delay queue for retries
@@ -319,6 +320,8 @@ export class TradeQueue {
       const keypair = Keypair.fromSecretKey(bs58.decode(secret.SOLANA_PRIVATE_KEY));
       const publicKey = keypair.publicKey;
 
+      //console.log("publicKey:", publicKey)
+
       // Check basic SOL balance for fees
       const hasFeeBalance = await checkFeeBalance(publicKey);
       if (!hasFeeBalance) {
@@ -333,7 +336,7 @@ export class TradeQueue {
         const swapClient = new SolanaTrackerSwapClient({
           apiKey: process.env.SOLANA_TRACKER_API_KEY!,
           rpcUrl: process.env.SOLANA_RPC_URL!,
-          privateKey: privateKey
+          privateKey: secret.SOLANA_PRIVATE_KEY
         });
 
         // Get current SOL balance
@@ -365,7 +368,7 @@ export class TradeQueue {
         const swapClient = new SolanaTrackerSwapClient({
           apiKey: process.env.SOLANA_TRACKER_API_KEY!,
           rpcUrl: process.env.SOLANA_RPC_URL!,
-          privateKey: privateKey
+          privateKey: secret.SOLANA_PRIVATE_KEY
         });
 
         const tokenBalance = await swapClient.getTokenBalance({ mint: tokenMint });

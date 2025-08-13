@@ -13,6 +13,7 @@ import {
   TrailingStopLossConfig, 
   TradeWatchQueueOptions 
 } from '../types';
+import { SecureEnvManager } from '../utils/credentialManager';
 
 export class TradeWatchQueue {
   private connection: Connection | null = null;
@@ -668,11 +669,16 @@ export class TradeWatchQueue {
         return { hasBalance: false, currentBalance: 0, error: 'Missing privateKey or tokenMint' };
       }
 
+      const credentialManager = SecureEnvManager.getInstance();
+      await credentialManager.init();
+      // Decode private key to get public key
+      const secret = await credentialManager.getSecret(undefined, undefined, undefined, job.privateKey, false, true)
+
       // Create swap client to check token balance
       const swapClient = new SolanaTrackerSwapClient({
         apiKey: process.env.SOLANA_TRACKER_API_KEY!,
         rpcUrl: process.env.SOLANA_RPC_URL!,
-        privateKey: job.privateKey
+        privateKey: secret.SOLANA_PRIVATE_KEY
       });
 
       const balanceResult = await swapClient.getTokenBalance({ mint: job.tokenMint });

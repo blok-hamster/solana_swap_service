@@ -500,10 +500,11 @@ export class SolanaTrackerSwapClient {
 
   //Trump token: "6p6xgHyF7AeE6TZkSmFsko444wqoP15icUSqi2jfGiPN"
   async getTokenBalance({mint}:{mint?: string}) {
-      try{
+      try{  
         const keypair = Keypair.fromSecretKey(bs58.decode(this.privateKey));
         //const owner = new PublicKey("8ezggN9N1QM6a6jBgqmdRAGSMQZ25mDw3dyWWbRhNhhp")
         const owner = keypair.publicKey
+        
         const accounts = await this.connection.getParsedTokenAccountsByOwner(owner, {
           programId: TOKEN_PROGRAM_ID 
         });
@@ -523,7 +524,7 @@ export class SolanaTrackerSwapClient {
 
         return {status: true, data: balanceInfo, message: 'token blance retrived'}
       }catch(e){
-        console.log((e as Error).message)
+        console.log((e as Error))
         return {status: false, data: null, message: 'error geting token balance'}
       }
   }
