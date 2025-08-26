@@ -509,7 +509,7 @@ export class TradeQueue {
     // Execute the sell trade
     const result = await this.ledgerTools.performSwap({
       agentId,
-      amount: balanceValidation.balanceData.available,
+      amount: balanceValidation.balanceData.available < amount ? balanceValidation.balanceData.available : amount,
       action: 'sell',
       privateKey,
       mint: mint,
