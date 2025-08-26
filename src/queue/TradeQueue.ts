@@ -373,7 +373,7 @@ export class TradeQueue {
 
         const tokenBalance = await swapClient.getTokenBalance({ mint: tokenMint });
         
-        if (!tokenBalance.status || !tokenBalance.data || tokenBalance.data.balance < amount) {
+        if (!tokenBalance.status || !tokenBalance.data || tokenBalance.data.balance === 0) {
           const availableBalance = tokenBalance.data?.balance || 0;
           return {
             success: false,
@@ -509,7 +509,7 @@ export class TradeQueue {
     // Execute the sell trade
     const result = await this.ledgerTools.performSwap({
       agentId,
-      amount,
+      amount: balanceValidation.balanceData.available,
       action: 'sell',
       privateKey,
       mint: mint,
