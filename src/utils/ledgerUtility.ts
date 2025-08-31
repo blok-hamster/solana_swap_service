@@ -478,7 +478,7 @@ export class SolanaLedgerUtility {
                     totalSOLSpent += txn.amountOut;  // SOL spent in buy transaction
                 } else if (txn.action === 'sell') {
                     totalSellTrades++;
-                    totalSOLReceived += txn.amountOut;  // SOL received in sell transaction
+                    totalSOLReceived += txn.amountIn;  // SOL received in sell transaction
                 }
                 
                 if (txn.fees) {
