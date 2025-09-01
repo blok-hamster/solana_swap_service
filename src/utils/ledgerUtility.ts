@@ -646,8 +646,19 @@ export class AgentLedgerTools extends SolanaLedgerUtility {
     
         const solanaTransferService = new SolanaTransferService(process.env.SOLANA_RPC_URL!, keypair);
         const transactionHash = await solanaTransferService.transferSol(to, amount);
+        if(!transactionHash.success){
+            const regex = /Message:\s*(.*?)\s*Logs:/s;
+            const match = transactionHash.message.match(regex);
+            
+            
+            return {
+                success: false,
+                message: match ? match[1] as string : transactionHash.message as string,
+                data: null,
+            }
+        }
 
-        const confirmation = await swapClient.checkTransactionSuccess(transactionHash)
+        const confirmation = await swapClient.checkTransactionSuccess(transactionHash.data as string)
         if(!confirmation.success){
             return {
                 success: false,
@@ -659,10 +670,9 @@ export class AgentLedgerTools extends SolanaLedgerUtility {
         return {
             success: true,
             message: 'SOL transfer successful',
-            data: {transactionHash},
+            data: {transactionHash: transactionHash.data as string},
         }
        } catch(e){
-        console.log(e);
         return {
             success: false,
             message: 'SOL transfer failed',
@@ -681,6 +691,7 @@ export class AgentLedgerTools extends SolanaLedgerUtility {
             const swapClient = new SolanaTrackerSwapClient({apiKey: process.env.SOLANA_TRACKER_API_KEY!, rpcUrl: process.env.SOLANA_RPC_URL!, privateKey: secret.SOLANA_PRIVATE_KEY})
 
             const tokenBalance = await swapClient.getTokenBalance({mint: mint})
+            //console.log(tokenBalance);
             if(!tokenBalance.status){
                 return {
                     success: false,
@@ -709,8 +720,19 @@ export class AgentLedgerTools extends SolanaLedgerUtility {
 
             const solanaTransferService = new SolanaTransferService(process.env.SOLANA_RPC_URL!, keypair);
             const transactionHash = await solanaTransferService.transferSplToken(mint, to, amount);
-
-            const confirmation = await swapClient.checkTransactionSuccess(transactionHash)
+            
+            //console.log(transactionHash);
+            if(!transactionHash.success){
+                const regex = /Message:\s*(.*?)\s*Logs:/s;
+                const match = transactionHash.message.match(regex);
+                
+                return {
+                    success: false,
+                    message: match ? match[1] as string : transactionHash.message as string,
+                    data: null,
+                }
+            }
+            const confirmation = await swapClient.checkTransactionSuccess(transactionHash.data as string)
             if(!confirmation.success){
                 return {
                     success: false,
@@ -722,7 +744,7 @@ export class AgentLedgerTools extends SolanaLedgerUtility {
             return {
                 success: true,
                 message: 'Token transfer successful',
-                data: {transactionHash},
+                data: {transactionHash: transactionHash.data as string},
             }
         } catch(e){
             console.log(e);

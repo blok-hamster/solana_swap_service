@@ -4,9 +4,18 @@ import {
   createTransferInstruction,
   TOKEN_PROGRAM_ID,
   getMint,
+  getAssociatedTokenAddress,
+  createAssociatedTokenAccountInstruction,
+  getAccount,
 } from "@solana/spl-token";
 import bs58 from 'bs58';
 import { SolanaSwapConfig, SwapResult } from '../types';
+
+const TOKEN_ACCOUNT_SIZE = 165; // token account data size in bytes
+
+async function lamportsToSol(lamports: number) {
+  return lamports / 1_000_000_000;
+}
 
 // /**
 //  * Placeholder for AgentLedgerTools - needs to be adapted from RPC server
@@ -114,23 +123,120 @@ export class SolanaTransferService {
     this.connection = new Connection(rpcUrl, "confirmed");
     this.payer = payer;
   }
+  
+  async getOrCreateATA(
+    connection: Connection,
+    mint: PublicKey,
+    owner: PublicKey,
+    payer: Keypair,
+    options?: { autoAirdrop?: boolean }
+  ): Promise<PublicKey> {
+    const ata = await getAssociatedTokenAddress(mint, owner);
+  
+    // If the account exists, return it
+    try {
+      const acc = await getAccount(connection, ata);
+      return ata;
+    } catch (err: any) {
+      // TokenAccountNotFoundError — proceed to create
+    }
+  
+    // Compute rent-exempt amount for token account
+    const rentExemptLamports = await connection.getMinimumBalanceForRentExemption(
+      TOKEN_ACCOUNT_SIZE
+    );
+  
+    // Add a small buffer for fees (transaction fee, etc.)
+    const feeBuffer = 5000; // lamports (~0.000005 SOL) — tiny buffer
+    const requiredLamports = rentExemptLamports + feeBuffer;
+  
+    const payerBalance = await connection.getBalance(payer.publicKey);
+  
+    if (payerBalance < requiredLamports) {
+      const msg = `Payer has insufficient SOL to create transaction.
+  Payer balance: ${payerBalance} lamports (${(await lamportsToSol(payerBalance)).toFixed(9)} SOL)
+  Required (rentExempt + buffer): ${requiredLamports} lamports (${(await lamportsToSol(requiredLamports)).toFixed(9)} SOL)
+  Action: Fund the payer wallet with at least ${(await lamportsToSol(requiredLamports)).toFixed(9)} SOL`;
+  
+      // Optionally auto-airdrop on devnet
+      if (options?.autoAirdrop) {
+        const version = await connection.getEpochInfo().catch(() => null);
+        // best-effort: only request airdrop if network supports it (devnet/testnet)
+        try {
+          console.log("Attempting airdrop of 0.01 SOL to payer for dev/testing...");
+          const airdropSig = await connection.requestAirdrop(
+            payer.publicKey,
+            10_000_000 // 0.01 SOL
+          );
+          await connection.confirmTransaction(airdropSig, "confirmed");
+        } catch (aErr) {
+          console.warn("Airdrop failed or not available:", aErr);
+        }
+        // re-check balance
+        const newBal = await connection.getBalance(payer.publicKey);
+        if (newBal < requiredLamports) {
+          throw new Error(msg + `\nAfter attempted airdrop, balance is still ${newBal} lamports.`);
+        }
+      } else {
+        throw new Error(msg);
+      }
+    }
+  
+    // Build create ATA instruction and send
+    const createIx = createAssociatedTokenAccountInstruction(
+      payer.publicKey, // payer
+      ata, // ata to create
+      owner, // owner of ATA
+      mint // mint
+    );
+  
+    const tx = new Transaction().add(createIx);
+    const sig = await sendAndConfirmTransaction(connection, tx, [payer]);
+  
+    // Confirm creation
+    await getAccount(connection, ata); // if this still fails it will throw
+    console.log("ATA created:", ata.toBase58(), "tx:", sig);
+    return ata;
+  }
+  
 
   /**
    * Transfer native SOL
    */
-  async transferSol(to: string, amountSol: number): Promise<string> {
-    const toPubkey = new PublicKey(to);
-    const lamports = amountSol * 1_000_000_000; // 1 SOL = 1e9 lamports
+  async transferSol(to: string, amountSol: number): Promise<{success: boolean, message: string, data: string | null}> {
+    try{
+      const toPubkey = new PublicKey(to);
+      const lamports = amountSol * 1_000_000_000; // 1 SOL = 1e9 lamports
 
-    const transaction = new Transaction().add(
-      SystemProgram.transfer({
-        fromPubkey: this.payer.publicKey,
-        toPubkey,
-        lamports,
-      })
-    );
+      const transaction = new Transaction().add(
+        SystemProgram.transfer({
+          fromPubkey: this.payer.publicKey,
+          toPubkey,
+          lamports,
+        })
+      );
 
-    return await sendAndConfirmTransaction(this.connection, transaction, [this.payer]);
+      const txid = await sendAndConfirmTransaction(this.connection, transaction, [this.payer]);
+      if(!txid){
+        return {
+          success: false,
+          message: 'Transaction failed',
+          data: null,
+        }
+      }
+      return {
+        success: true,
+        message: 'Transaction successful',
+        data: txid,
+      }
+    } catch(e: any){
+      console.log(e);
+      return {
+        success: false,
+        message: e.message,
+        data: null,
+      }
+    }
   }
 
   /**
@@ -140,46 +246,52 @@ export class SolanaTransferService {
     tokenMint: string,
     to: string,
     amount: number
-  ): Promise<string> {
-    const mintPubkey = new PublicKey(tokenMint);
-    const toPubkey = new PublicKey(to);
+  ): Promise<{ success: boolean; message: string; data: string | null }> {
+    try {
+      const mintPubkey = new PublicKey(tokenMint);
+      const toPubkey = new PublicKey(to);
+  
+      // Get mint info to fetch decimals
+      const mintInfo = await getMint(this.connection, mintPubkey);
+      const decimals = mintInfo.decimals;
+  
+      const amountInBaseUnits = BigInt(Math.floor(amount * 10 ** decimals));
 
-    // Get mint info to fetch decimals
-    const mintInfo = await getMint(this.connection, mintPubkey);
-    const decimals = mintInfo.decimals;
+      const fromATA = await this.getOrCreateATA(this.connection, mintPubkey, this.payer.publicKey, this.payer);
+      //console.log("From ATA:", fromATA.toBase58());
+      
+      const toATA = await this.getOrCreateATA(this.connection, mintPubkey, toPubkey, this.payer);
+      //console.log("To ATA:", toATA.toBase58());
 
-    // Get or create ATA for sender
-    const fromTokenAccount = await getOrCreateAssociatedTokenAccount(
-      this.connection,
-      this.payer,
-      mintPubkey,
-      this.payer.publicKey
-    );
-
-    // Get or create ATA for recipient
-    const toTokenAccount = await getOrCreateAssociatedTokenAccount(
-      this.connection,
-      this.payer,
-      mintPubkey,
-      toPubkey
-    );
-
-    // Convert to base units
-    const amountInBaseUnits = BigInt(amount * Math.pow(10, decimals));
-
-    const transferIx = createTransferInstruction(
-      fromTokenAccount.address,
-      toTokenAccount.address,
-      this.payer.publicKey,
-      amountInBaseUnits,
-      [],
-      TOKEN_PROGRAM_ID
-    );
-
-    const transaction = new Transaction().add(transferIx);
-
-    return await sendAndConfirmTransaction(this.connection, transaction, [this.payer]);
+      const transferIx = createTransferInstruction(
+        fromATA,
+        toATA,
+        this.payer.publicKey,
+        amountInBaseUnits,
+        [],
+        TOKEN_PROGRAM_ID
+      );
+  
+      // Build transfer instruction
+      
+  
+      const transaction = new Transaction().add(transferIx);
+  
+      const txid = await sendAndConfirmTransaction(this.connection, transaction, [this.payer]);
+  
+      if (!txid) {
+        return { success: false, message: "Transaction failed", data: null };
+      }
+  
+      return { success: true, message: "Transaction successful", data: txid };
+    } catch (e: any) {
+      //console.error(e);
+      const errorMessage =
+        e.message?.match(/Message:\s*(.*?)\s*Logs:/s)?.[1] || e.message;
+      return { success: false, message: errorMessage, data: null };
+    }
   }
+  
 }
 
 
