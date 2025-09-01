@@ -643,7 +643,7 @@ export class SolanaTrackerSwapClient {
    * @param txid The transaction ID to check
    * @returns An object indicating if the transaction was successful
    */
-  private async checkTransactionSuccess(txid: string): Promise<{success: boolean, error?: string}> {
+  async checkTransactionSuccess(txid: string): Promise<{success: boolean, error?: string}> {
     try {
       const maxRetries = 4;
       const retryInterval = 2000; // 2 seconds

@@ -632,6 +632,7 @@ export class AgentLedgerTools extends SolanaLedgerUtility {
         const secret = await this.credentialManager.getSecret(undefined, undefined, undefined, privateKey, false, true)
         
         const keypair = Keypair.fromSecretKey(bs58.decode(secret.SOLANA_PRIVATE_KEY));
+        const swapClient = new SolanaTrackerSwapClient({apiKey: process.env.SOLANA_TRACKER_API_KEY!, rpcUrl: process.env.SOLANA_RPC_URL!, privateKey: secret.SOLANA_PRIVATE_KEY})
 
         // Todo get user balance and check if enough balance
         const userBalance = await getSolBalance(keypair.publicKey);
@@ -645,6 +646,15 @@ export class AgentLedgerTools extends SolanaLedgerUtility {
     
         const solanaTransferService = new SolanaTransferService(process.env.SOLANA_RPC_URL!, keypair);
         const transactionHash = await solanaTransferService.transferSol(to, amount);
+
+        const confirmation = await swapClient.checkTransactionSuccess(transactionHash)
+        if(!confirmation.success){
+            return {
+                success: false,
+                message: confirmation.error as string,
+                data: null,
+            }
+        }
 
         return {
             success: true,
@@ -699,6 +709,15 @@ export class AgentLedgerTools extends SolanaLedgerUtility {
 
             const solanaTransferService = new SolanaTransferService(process.env.SOLANA_RPC_URL!, keypair);
             const transactionHash = await solanaTransferService.transferSplToken(mint, to, amount);
+
+            const confirmation = await swapClient.checkTransactionSuccess(transactionHash)
+            if(!confirmation.success){
+                return {
+                    success: false,
+                    message: confirmation.error as string,
+                    data: null,
+                }
+            }
 
             return {
                 success: true,
