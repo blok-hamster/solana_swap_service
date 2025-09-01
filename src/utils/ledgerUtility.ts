@@ -1,6 +1,7 @@
 import { MongoClient, ObjectId } from 'mongodb';
 import { v4 as uuidv4 } from 'uuid';
 import { SolanaTrackerClient , SolanaTrackerSwapClient} from './solanaTracker';
+import { SolanaTransferService, getSolBalance } from './solanaUtils';
 import { Keypair, Connection } from '@solana/web3.js';
 import { SecureEnvManager } from './credentialManager';
 import { callRpcServer } from '../Rpc/Rpc_consumer';
@@ -622,4 +623,96 @@ export class AgentLedgerTools extends SolanaLedgerUtility {
             throw e;
         }
     }
+    
+    //TRANSFER SOL
+    async transferSOL({to, amount, privateKey}:{to: string, amount: number, privateKey: string}) : Promise<{success: boolean, message: string, data: {transactionHash: string} | null}> {
+        
+       try{
+        await this.credentialManager.init();
+        const secret = await this.credentialManager.getSecret(undefined, undefined, undefined, privateKey, false, true)
+        
+        const keypair = Keypair.fromSecretKey(bs58.decode(secret.SOLANA_PRIVATE_KEY));
+
+        // Todo get user balance and check if enough balance
+        const userBalance = await getSolBalance(keypair.publicKey);
+        if(userBalance < amount){
+            return {
+                success: false,
+                message: 'Insufficient balance',
+                data: null,
+            }
+        }
+    
+        const solanaTransferService = new SolanaTransferService(process.env.SOLANA_RPC_URL!, keypair);
+        const transactionHash = await solanaTransferService.transferSol(to, amount);
+
+        return {
+            success: true,
+            message: 'SOL transfer successful',
+            data: {transactionHash},
+        }
+       } catch(e){
+        console.log(e);
+        return {
+            success: false,
+            message: 'SOL transfer failed',
+            data: null,
+        }
+       }
+    }
+
+    //TRANSFER TOKEN
+    async transferToken({to, amount, privateKey, mint}:{to: string, amount: number, privateKey: string, mint: string}) : Promise<{success: boolean, message: string, data: {transactionHash: string} | null}> {
+        try{
+            await this.credentialManager.init();
+            const secret = await this.credentialManager.getSecret(undefined, undefined, undefined, privateKey, false, true)
+            
+            const keypair = Keypair.fromSecretKey(bs58.decode(secret.SOLANA_PRIVATE_KEY));
+            const swapClient = new SolanaTrackerSwapClient({apiKey: process.env.SOLANA_TRACKER_API_KEY!, rpcUrl: process.env.SOLANA_RPC_URL!, privateKey: secret.SOLANA_PRIVATE_KEY})
+
+            const tokenBalance = await swapClient.getTokenBalance({mint: mint})
+            if(!tokenBalance.status){
+                return {
+                    success: false,
+                    message: 'Token balance not found',
+                    data: null,
+                }
+            }
+
+            if(!tokenBalance.data){
+
+                return {
+                    success: false,
+                    message: 'Token balance not found',
+                    data: null,
+                }
+            }
+
+            if(tokenBalance.data.balance < amount){
+
+                return {
+                    success: false,
+                    message: 'Insufficient token balance',
+                    data: null,
+                }
+            }
+
+            const solanaTransferService = new SolanaTransferService(process.env.SOLANA_RPC_URL!, keypair);
+            const transactionHash = await solanaTransferService.transferSplToken(mint, to, amount);
+
+            return {
+                success: true,
+                message: 'Token transfer successful',
+                data: {transactionHash},
+            }
+        } catch(e){
+            console.log(e);
+            return {
+                success: false,
+                message: 'Token transfer failed',
+                data: null,
+            }
+        }
+    }   
+    
 }

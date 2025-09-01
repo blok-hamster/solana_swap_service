@@ -243,6 +243,12 @@ export class RpcServer {
     case "getUserTradingStats":
         const userTradingStats: ITransactionStats = await this.ledgerUtility.getUserTradingStats({agentId: args.agentId})
         return userTradingStats
+    case "transferSOL":
+        const transferSOL: {success: boolean, message: string, data: {transactionHash: string} | null} = await this.ledgerUtility.transferSOL({to: args.to, amount: args.amount, privateKey: args.privateKey})
+        return transferSOL
+    case "transferToken":
+        const transferToken: {success: boolean, message: string, data: {transactionHash: string} | null} = await this.ledgerUtility.transferToken({to: args.to, amount: args.amount, privateKey: args.privateKey, mint: args.mint})
+        return transferToken
       default:
         return {
           message: 'Invalid method',
